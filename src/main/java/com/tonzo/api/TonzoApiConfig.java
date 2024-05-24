@@ -8,12 +8,12 @@ import net.runelite.client.config.ConfigItem;
 public interface TonzoApiConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+		keyName = "apiPort",
+		name = "HTTP Server Port",
+		description = "Port # the HTTP server will run on"
 	)
-	default String greeting()
+	default String apiPort()
 	{
-		return "Hello";
+		return "5252";
 	}
 }

@@ -1,18 +1,17 @@
 package com.tonzo.api;
 
 import com.google.inject.Provides;
+import com.google.gson.JsonObject;
+
 import javax.inject.Inject;
+
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
+
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-
 import net.runelite.client.callback.ClientThread;
+import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.Item;
@@ -21,15 +20,17 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.VarPlayer;
 import net.runelite.http.api.RuneLiteAPI;
 
-import com.google.gson.JsonObject;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+
 import static java.lang.Integer.parseInt;
+
 import java.net.InetSocketAddress;
+
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,33 +48,31 @@ public class TonzoApiPlugin extends Plugin
 {
 	@Inject
 	private Client client;
-
 	@Inject
 	private TonzoApiConfig config;
-
 	@Inject
-	public ClientThread clientThread;
+	public ClientThread client_thread;
 	public HttpServer server;
+	public boolean tonzo_active;
 
-	public enum equipmentSlots
+	public enum EquipSlots
 	{
-		head, back, neck, weapon, chest, shield, placeholderA, legs, placeholderB, gloves, boots, placeholderC, ring, ammo
+		HEAD, BACK, NECK, WEAPON, CHEST, OFFHAND, PLACEHOLDERA, LEGS, PLACEHOLDERB, GLOVES, BOOTS, PLACEHOLDERC, RING, AMMO
 	}
 
 	@Override
 	protected void startUp() throws Exception
 	{
-		log.info("TonzoAPI started!");
-
-		String httpPort = config.apiPort();
-		log.info("TonzoAPI running on Port: " + httpPort);
-
-		int httpPortInt = parseInt(httpPort);
-
-		server = HttpServer.create(new InetSocketAddress(httpPortInt), 0);
+		String http_port = config.apiPort();
+		log.info("TonzoAPI running on Port: " + http_port);
+		int http_port_int = parseInt(http_port);
+		server = HttpServer.create(new InetSocketAddress(http_port_int), 0);
 		server.createContext("/inv", handleInventory());
 		server.createContext("/equip", handleEquipment());
 		server.createContext("/stats", this::handleStats);
+		server.createContext("/start", this::handleStart);
+		server.createContext("/stop", this::handleStop);
+		server.createContext("/tonzo", this::handleTonzo);
 		server.setExecutor(Executors.newSingleThreadExecutor());
 		server.start();
 	}
@@ -83,15 +82,6 @@ public class TonzoApiPlugin extends Plugin
 	{
 		server.stop(1);
 		log.info("TonzoAPI stopped!");
-	}
-
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "TonzoAPI says " + config.apiPort(), null);
-		}
 	}
 
 	@Provides
@@ -104,42 +94,34 @@ public class TonzoApiPlugin extends Plugin
 		Player player = client.getLocalPlayer();
 
 		JsonObject object = new JsonObject();
-		JsonObject camera = new JsonObject();
-		JsonObject playerCoordinates = new JsonObject();
-		JsonObject playerObject = new JsonObject();
+		JsonObject player_coordinates = new JsonObject();
+		JsonObject player_object = new JsonObject();
 
 		//GENERAL
 		object.addProperty("gameCycle", client.getGameCycle());
 
 		//PLAYER
-		playerObject.addProperty("animation", player.getAnimation());
-		playerObject.addProperty("animationPose", player.getPoseAnimation());
-		playerObject.addProperty("interactingCode", String.valueOf(player.getInteracting()));
-		playerObject.addProperty("runEnergy", client.getEnergy());
-		playerObject.addProperty("specialAttackEnergy", client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT));
-		playerObject.addProperty("currentPrayer", client.getBoostedSkillLevel(Skill.PRAYER));
-		playerObject.addProperty("maxPrayer", client.getRealSkillLevel(Skill.PRAYER));
-		playerObject.addProperty("currentHealth", client.getBoostedSkillLevel(Skill.HITPOINTS));
-		playerObject.addProperty("maxHealth", client.getRealSkillLevel(Skill.HITPOINTS));
+		player_object.addProperty("animation", player.getAnimation());
+		player_object.addProperty("animationPose", player.getPoseAnimation());
+		player_object.addProperty("interactingCode", String.valueOf(player.getInteracting()));
+		player_object.addProperty("runEnergy", client.getEnergy());
+		player_object.addProperty("specialAttackEnergy", client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT));
+		player_object.addProperty("currentPrayer", client.getBoostedSkillLevel(Skill.PRAYER));
+		player_object.addProperty("maxPrayer", client.getRealSkillLevel(Skill.PRAYER));
+		player_object.addProperty("currentHealth", client.getBoostedSkillLevel(Skill.HITPOINTS));
+		player_object.addProperty("maxHealth", client.getRealSkillLevel(Skill.HITPOINTS));
 
 		//PLAYER COORDINATES
-		playerCoordinates.addProperty("x", player.getWorldLocation().getX());
-		playerCoordinates.addProperty("y", player.getWorldLocation().getY());
-		playerCoordinates.addProperty("plane", player.getWorldLocation().getPlane());
-		playerCoordinates.addProperty("regionID", player.getWorldLocation().getRegionID());
-		playerCoordinates.addProperty("regionX", player.getWorldLocation().getRegionX());
-		playerCoordinates.addProperty("regionY", player.getWorldLocation().getRegionY());
+		player_coordinates.addProperty("x", player.getWorldLocation().getX());
+		player_coordinates.addProperty("y", player.getWorldLocation().getY());
+		player_coordinates.addProperty("x,y", String.format("%s,%s", player.getWorldLocation().getX(), player.getWorldLocation().getY()));
+		player_coordinates.addProperty("plane", player.getWorldLocation().getPlane());
+		player_coordinates.addProperty("regionID", player.getWorldLocation().getRegionID());
+		player_coordinates.addProperty("regionX", player.getWorldLocation().getRegionX());
+		player_coordinates.addProperty("regionY", player.getWorldLocation().getRegionY());
 
-		//CAMERA
-		camera.addProperty("yaw", client.getCameraYaw());
-		camera.addProperty("pitch", client.getCameraPitch());
-		camera.addProperty("x", client.getCameraX());
-		camera.addProperty("y", client.getCameraY());
-		camera.addProperty("z", client.getCameraZ());
-
-		playerObject.add("playerCoordinates", playerCoordinates);
-		object.add("camera", camera);
-		object.add("playerObject", playerObject);
+		player_object.add("playerCoordinates", player_coordinates);
+		object.add("playerObject", player_object);
 
 		exchange.sendResponseHeaders(200, 0);
 		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
@@ -158,14 +140,14 @@ public class TonzoApiPlugin extends Plugin
 			});
 
 			if (items == null) {
-				List<Object> emptyArray = new ArrayList<Object>();
+				List<Object> empty_array = new ArrayList<Object>();
 				exchange.sendResponseHeaders(200, 0);
 				try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-					RuneLiteAPI.GSON.toJson(emptyArray, out);
+					RuneLiteAPI.GSON.toJson(empty_array, out);
 				}
 			}
 
-			List<Object> itemArray = new ArrayList<Object>();
+			List<Object> item_array = new ArrayList<Object>();
 
 			int count = 0;
 			for (Item i : items) {
@@ -173,13 +155,13 @@ public class TonzoApiPlugin extends Plugin
 				dict.put("id",i.getId());
 				dict.put("invSlot",count);
 				dict.put("quantity",i.getQuantity());
-				itemArray.add(dict);
+				item_array.add(dict);
 				count++;
 			}
 
 			exchange.sendResponseHeaders(200, 0);
 			try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-				RuneLiteAPI.GSON.toJson(itemArray, out);
+				RuneLiteAPI.GSON.toJson(item_array, out);
 			}
 		};
 	}
@@ -195,41 +177,67 @@ public class TonzoApiPlugin extends Plugin
 			});
 
 			if (items == null) {
-				List<Object> emptyArray = new ArrayList<Object>();
+				List<Object> empty_array = new ArrayList<Object>();
 				exchange.sendResponseHeaders(200, 0);
 				try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-					RuneLiteAPI.GSON.toJson(emptyArray, out);
+					RuneLiteAPI.GSON.toJson(empty_array, out);
 				}
 			}
 
-			JsonObject equipmentObject = new JsonObject();
+			JsonObject equipment_object = new JsonObject();
 
 			int count = 0;
 			for (Item i : items) {
 				JsonObject slot = new JsonObject();
 				slot.addProperty("id", i.getId());
 				slot.addProperty("quantity",i.getQuantity());
-				//Do this better, ask Rob
-				if(equipmentSlots.values()[count] == equipmentSlots.placeholderA || equipmentSlots.values()[count] == equipmentSlots.placeholderB || equipmentSlots.values()[count] == equipmentSlots.placeholderC) {
+				if(EquipSlots.values()[count] == EquipSlots.PLACEHOLDERA || EquipSlots.values()[count] == EquipSlots.PLACEHOLDERB || EquipSlots.values()[count] == EquipSlots.PLACEHOLDERC) {
 
 				}else{
-					equipmentObject.add(String.valueOf(equipmentSlots.values()[count]), slot);
+					equipment_object.add(String.valueOf(EquipSlots.values()[count]), slot);
 				}
 				count++;
 			}
 
 			exchange.sendResponseHeaders(200, 0);
 			try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-				RuneLiteAPI.GSON.toJson(equipmentObject, out);
+				RuneLiteAPI.GSON.toJson(equipment_object, out);
 			}
 		};
+	}
+
+	public void handleStart(HttpExchange exchange) throws IOException {
+		tonzo_active = true;
+		JsonObject object = new JsonObject();
+		exchange.sendResponseHeaders(200, 0);
+		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+			RuneLiteAPI.GSON.toJson(object, out);
+		}
+	}
+
+	public void handleStop(HttpExchange exchange) throws IOException {
+		tonzo_active = false;
+		JsonObject object = new JsonObject();
+		exchange.sendResponseHeaders(200, 0);
+		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+			RuneLiteAPI.GSON.toJson(object, out);
+		}
+	}
+
+	public void handleTonzo(HttpExchange exchange) throws IOException {
+		JsonObject object = new JsonObject();
+		object.addProperty("tonzoActive", tonzo_active);
+		exchange.sendResponseHeaders(200, 0);
+		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+			RuneLiteAPI.GSON.toJson(object, out);
+		}
 	}
 
 	private <T> T invokeAndWait(Callable<T> r) {
 		try {
 			AtomicReference<T> ref = new AtomicReference<>();
 			Semaphore semaphore = new Semaphore(0);
-			clientThread.invokeLater(() -> {
+			client_thread.invokeLater(() -> {
 				try {
 
 					ref.set(r.call());

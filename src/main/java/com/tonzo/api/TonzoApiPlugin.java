@@ -49,6 +49,8 @@ public class TonzoApiPlugin extends Plugin
 	private HttpServer server;
 	private JsonObject state;
 	private Vector<JsonObject> inventory;
+	private int prev_health;
+	private int prev_animation;
 
 	@Override
 	protected void startUp() throws Exception
@@ -57,8 +59,8 @@ public class TonzoApiPlugin extends Plugin
 		log.info("TonzoAPI running on Port: " + http_port);
 		int http_port_int = parseInt(http_port);
 		server = HttpServer.create(new InetSocketAddress(http_port_int), 0);
-		server.createContext("/inventory", this::handleInventory);
 		server.createContext("/state", this::handleState);
+		server.createContext("/inventory", this::handleInventory);
 		server.setExecutor(Executors.newSingleThreadExecutor());
 		server.start();
 
@@ -68,8 +70,12 @@ public class TonzoApiPlugin extends Plugin
 			JsonObject item = new JsonObject();
 			item.addProperty("id", 0);
 			item.addProperty("quantity", 0);
+			item.addProperty("slot", i);
 			inventory.add(item);
 		}
+
+		prev_animation = -1;
+		prev_health = 0;
 	}
 
 	@Override
@@ -86,24 +92,40 @@ public class TonzoApiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
+	private void onGameTick(GameTick event)
 	{
 		Player player = client.getLocalPlayer();
 
 		//GENERAL
 		state.addProperty("gameCycle", client.getGameCycle());
 		//PLAYER
-		state.addProperty("animation", player.getAnimation());
+		int animation = player.getAnimation();
+		state.addProperty("animation", animation);
 		state.addProperty("interactingCode", String.valueOf(player.getInteracting()));
 		state.addProperty("runEnergy", client.getEnergy());
 		state.addProperty("specialAttackEnergy", client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT));
 		state.addProperty("currentPrayer", client.getBoostedSkillLevel(Skill.PRAYER));
-		state.addProperty("currentHealth", client.getBoostedSkillLevel(Skill.HITPOINTS));
-		//PLAYER COORDINATES private WorldPoint client.getLocalPlayer().getWorldLocation()
-		state.addProperty("x", player.getWorldLocation().getX());
-		state.addProperty("y", player.getWorldLocation().getY());
-		state.addProperty("x,y", String.format("%s,%s", player.getWorldLocation().getX(), player.getWorldLocation().getY()));
+		int health = client.getBoostedSkillLevel(Skill.HITPOINTS);
+		state.addProperty("currentHealth", health);
+		//PLAYER COORDINATES
+		int x = player.getWorldLocation().getX();
+		int y = player.getWorldLocation().getY();
+		state.addProperty("x", x);
+		state.addProperty("y", y);
+		state.addProperty("x,y", String.format("%s,%s", x,y));
 		state.addProperty("plane", player.getWorldLocation().getPlane());
+		//LOGIC
+		if (animation != -1)
+		{
+			state.addProperty("trueIdle", false);
+		}
+		else {
+			if (prev_animation == -1 || health < prev_health) {
+				state.addProperty("trueIdle", true);
+			}
+		}
+		prev_health = health;
+		prev_animation = animation;
 
 		// INVENTORY
 		Item[] items;
@@ -117,11 +139,13 @@ public class TonzoApiPlugin extends Plugin
 		for (Item i : items) {
 			inventory.get(count).addProperty("id", i.getId());
 			inventory.get(count).addProperty("quantity", i.getQuantity());
+			inventory.get(count).addProperty("slot", count);
 			count++;
 		}
 		for (int i = count; i < 28; i++){
 			inventory.get(count).addProperty("id", 0);
 			inventory.get(count).addProperty("quantity", 0);
+			inventory.get(count).addProperty("slot", i);
 		}
 	}
 

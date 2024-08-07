@@ -50,7 +50,7 @@ public class TonzoApiPlugin extends Plugin
 	private JsonObject state;
 	private Vector<JsonObject> inventory;
 	private int prev_health;
-	private int prev_animation;
+	private int consecutive_idle_ticks;
 
 	@Override
 	protected void startUp() throws Exception
@@ -74,8 +74,8 @@ public class TonzoApiPlugin extends Plugin
 			inventory.add(item);
 		}
 
-		prev_animation = -1;
 		prev_health = 0;
+		consecutive_idle_ticks = 0;
 	}
 
 	@Override
@@ -114,18 +114,20 @@ public class TonzoApiPlugin extends Plugin
 		state.addProperty("y", y);
 		state.addProperty("x,y", String.format("%s,%s", x,y));
 		state.addProperty("plane", player.getWorldLocation().getPlane());
+		state.addProperty("trueIdle", false);
+
 		//LOGIC
 		if (animation != -1)
 		{
-			state.addProperty("trueIdle", false);
+			consecutive_idle_ticks = 0;
 		}
 		else {
-			if (prev_animation == -1 || health < prev_health) {
+			consecutive_idle_ticks++;
+			if (consecutive_idle_ticks >= 4 || health < prev_health) {
 				state.addProperty("trueIdle", true);
 			}
 		}
 		prev_health = health;
-		prev_animation = animation;
 
 		// INVENTORY
 		Item[] items;
@@ -143,7 +145,7 @@ public class TonzoApiPlugin extends Plugin
 			count++;
 		}
 		for (int i = count; i < 28; i++){
-			inventory.get(count).addProperty("id", 0);
+			inventory.get(count).addProperty("id", -1);
 			inventory.get(count).addProperty("quantity", 0);
 			inventory.get(count).addProperty("slot", i);
 		}

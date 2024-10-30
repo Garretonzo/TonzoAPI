@@ -13,6 +13,7 @@ import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.Item;
 import net.runelite.api.InventoryID;
+import net.runelite.api.VarClientInt;
 import net.runelite.api.VarPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -107,6 +108,8 @@ public class TonzoApiPlugin extends Plugin
 		state.addProperty("currentPrayer", client.getBoostedSkillLevel(Skill.PRAYER));
 		int health = client.getBoostedSkillLevel(Skill.HITPOINTS);
 		state.addProperty("currentHealth", health);
+		state.addProperty("inventoryTab", client.getVarcIntValue(VarClientInt.INVENTORY_TAB));
+
 		//PLAYER COORDINATES
 		int x = player.getWorldLocation().getX();
 		int y = player.getWorldLocation().getY();

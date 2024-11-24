@@ -51,7 +51,10 @@ public class TonzoApiPlugin extends Plugin
 	private JsonObject state;
 	private Vector<JsonObject> inventory;
 	private int prev_health;
+	private String prev_xy;
+
 	private int consecutive_idle_ticks;
+	private int consecutive_stationary_ticks;
 
 	@Override
 	protected void startUp() throws Exception
@@ -77,6 +80,8 @@ public class TonzoApiPlugin extends Plugin
 
 		prev_health = 0;
 		consecutive_idle_ticks = 0;
+		prev_xy = "";
+		consecutive_stationary_ticks = 0;
 	}
 
 	@Override
@@ -113,11 +118,13 @@ public class TonzoApiPlugin extends Plugin
 		//PLAYER COORDINATES
 		int x = player.getWorldLocation().getX();
 		int y = player.getWorldLocation().getY();
+		String xy = String.format("%s,%s", x,y);
 		state.addProperty("x", x);
 		state.addProperty("y", y);
-		state.addProperty("x,y", String.format("%s,%s", x,y));
+		state.addProperty("x,y", xy);
 		state.addProperty("plane", player.getWorldLocation().getPlane());
 		state.addProperty("trueIdle", false);
+		state.addProperty("moving", true);
 
 		//LOGIC
 		if (animation != -1)
@@ -128,9 +135,23 @@ public class TonzoApiPlugin extends Plugin
 			consecutive_idle_ticks++;
 			if (consecutive_idle_ticks >= 4 || health < prev_health) {
 				state.addProperty("trueIdle", true);
+				consecutive_idle_ticks = 4;
 			}
 		}
 		prev_health = health;
+
+		if (!prev_xy.equals(xy))
+		{
+			consecutive_stationary_ticks = 0;
+		}
+		else {
+			consecutive_stationary_ticks++;
+			if(consecutive_stationary_ticks >= 4) {
+				state.addProperty("moving", false);
+				consecutive_stationary_ticks = 4;
+			}
+		}
+		prev_xy = xy;
 
 		// INVENTORY
 		Item[] items;

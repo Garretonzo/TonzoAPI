@@ -13,6 +13,8 @@ import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.Item;
 import net.runelite.api.InventoryID;
+import net.runelite.api.widgets.ComponentID;
+import net.runelite.api.widgets.InterfaceID;
 import net.runelite.api.VarClientInt;
 import net.runelite.api.VarPlayer;
 import net.runelite.client.config.ConfigManager;
@@ -49,6 +51,7 @@ public class TonzoApiPlugin extends Plugin
 	public ClientThread client_thread;
 	private HttpServer server;
 	private JsonObject state;
+	private JsonObject experience;
 	private Vector<JsonObject> inventory;
 	private int prev_health;
 	private String prev_xy;
@@ -64,11 +67,13 @@ public class TonzoApiPlugin extends Plugin
 		int http_port_int = parseInt(http_port);
 		server = HttpServer.create(new InetSocketAddress(http_port_int), 0);
 		server.createContext("/state", this::handleState);
+		server.createContext("/experience", this::handleExperience);
 		server.createContext("/inventory", this::handleInventory);
 		server.setExecutor(Executors.newSingleThreadExecutor());
 		server.start();
 
 		state = new JsonObject();
+		experience = new JsonObject();
 		inventory = new Vector<JsonObject>();
 		for (int i = 0; i < 28; i++){
 			JsonObject item = new JsonObject();
@@ -121,10 +126,16 @@ public class TonzoApiPlugin extends Plugin
 		String xy = String.format("%s,%s", x,y);
 		state.addProperty("x", x);
 		state.addProperty("y", y);
-		state.addProperty("x,y", xy);
+		// state.addProperty("x,y", xy);
 		state.addProperty("plane", player.getWorldLocation().getPlane());
 		state.addProperty("trueIdle", false);
 		state.addProperty("moving", true);
+
+		//OPEN INTERFACES
+		boolean bank_open = client.getWidget(ComponentID.BANK_ITEM_CONTAINER) != null;
+		state.addProperty("bankOpen", bank_open);
+		boolean deposit_box_open = client.getWidget(ComponentID.DEPOSIT_BOX_INVENTORY_ITEM_CONTAINER) != null;
+		state.addProperty("depositOpen", deposit_box_open);
 
 		//LOGIC
 		if (animation != -1)
@@ -153,6 +164,54 @@ public class TonzoApiPlugin extends Plugin
 		}
 		prev_xy = xy;
 
+		//EXPERIENCE
+		int attack = client.getSkillExperience(Skill.ATTACK);
+		int strength = client.getSkillExperience(Skill.STRENGTH);
+		int defence = client.getSkillExperience(Skill.DEFENCE);
+		int ranged = client.getSkillExperience(Skill.RANGED);
+		int prayer = client.getSkillExperience(Skill.PRAYER);
+		int magic = client.getSkillExperience(Skill.MAGIC);
+		int runecraft = client.getSkillExperience(Skill.RUNECRAFT);
+		int hitpoints = client.getSkillExperience(Skill.HITPOINTS);
+		int crafting = client.getSkillExperience(Skill.CRAFTING);
+		int mining = client.getSkillExperience(Skill.MINING);
+		int smithing = client.getSkillExperience(Skill.SMITHING);
+		int fishing = client.getSkillExperience(Skill.FISHING);
+		int cooking = client.getSkillExperience(Skill.COOKING);
+		int firemaking = client.getSkillExperience(Skill.FIREMAKING);
+		int woodcutting = client.getSkillExperience(Skill.WOODCUTTING);
+		int agility = client.getSkillExperience(Skill.AGILITY);
+		int herblore = client.getSkillExperience(Skill.HERBLORE);
+		int thieving = client.getSkillExperience(Skill.THIEVING);
+		int fletching = client.getSkillExperience(Skill.FLETCHING);
+		int slayer = client.getSkillExperience(Skill.SLAYER);
+		int farming = client.getSkillExperience(Skill.FARMING);
+		int construction = client.getSkillExperience(Skill.CONSTRUCTION);
+		int hunter = client.getSkillExperience(Skill.HUNTER);
+		experience.addProperty("attack", attack);
+		experience.addProperty("strength", strength);
+		experience.addProperty("defence", defence);
+		experience.addProperty("ranged", ranged);
+		experience.addProperty("prayer", prayer);
+		experience.addProperty("magic", magic);
+		experience.addProperty("runecraft", runecraft);
+		experience.addProperty("hitpoints", hitpoints);
+		experience.addProperty("crafting", crafting);
+		experience.addProperty("mining", mining);
+		experience.addProperty("smithing", smithing);
+		experience.addProperty("fishing", fishing);
+		experience.addProperty("cooking", cooking);
+		experience.addProperty("firemaking", firemaking);
+		experience.addProperty("woodcutting", woodcutting);
+		experience.addProperty("agility", agility);
+		experience.addProperty("herblore", herblore);
+		experience.addProperty("thieving", thieving);
+		experience.addProperty("fletching", fletching);
+		experience.addProperty("slayer", slayer);
+		experience.addProperty("farming", farming);
+		experience.addProperty("construction", construction);
+		experience.addProperty("hunter", hunter);
+
 		// INVENTORY
 		Item[] items;
 		try {
@@ -179,6 +238,13 @@ public class TonzoApiPlugin extends Plugin
 		exchange.sendResponseHeaders(200, 0);
 		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
 			RuneLiteAPI.GSON.toJson(state, out);
+		}
+	}
+
+	private void handleExperience(HttpExchange exchange) throws IOException {
+		exchange.sendResponseHeaders(200, 0);
+		try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+			RuneLiteAPI.GSON.toJson(experience, out);
 		}
 	}
 
